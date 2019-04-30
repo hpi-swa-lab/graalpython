@@ -40,8 +40,11 @@
  */
 package com.oracle.graal.python.builtins.modules;
 
+import java.net.Inet4Address;
+import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
 import java.util.List;
 
 import com.oracle.graal.python.builtins.Builtin;
@@ -49,11 +52,13 @@ import com.oracle.graal.python.builtins.CoreFunctions;
 import com.oracle.graal.python.builtins.PythonBuiltinClassType;
 import com.oracle.graal.python.builtins.PythonBuiltins;
 import com.oracle.graal.python.builtins.objects.PNone;
+import com.oracle.graal.python.builtins.objects.common.SequenceStorageNodesFactory;
 import com.oracle.graal.python.builtins.objects.socket.PSocket;
 import com.oracle.graal.python.builtins.objects.type.LazyPythonClass;
 import com.oracle.graal.python.nodes.function.PythonBuiltinBaseNode;
 import com.oracle.graal.python.nodes.function.PythonBuiltinNode;
 import com.oracle.graal.python.runtime.exception.PythonErrorType;
+import com.oracle.graal.python.runtime.sequence.storage.SequenceStorageFactory;
 import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
 import com.oracle.truffle.api.dsl.GenerateNodeFactory;
 import com.oracle.truffle.api.dsl.NodeFactory;
@@ -108,6 +113,39 @@ public class SocketModuleBuiltins extends PythonBuiltins {
         String doGeneric() {
             try {
                 return InetAddress.getLocalHost().getHostName();
+            } catch (UnknownHostException e) {
+                throw raise(PythonBuiltinClassType.OSError);
+            }
+        }
+    }
+
+    @Builtin(name = "getaddrinfo", parameterNames = {"host", "port", "family", "type", "proto", "flags"})
+    @GenerateNodeFactory
+    public abstract static class GetAddrInfoNode extends PythonBuiltinNode {
+        @Specialization
+        @TruffleBoundary
+        Object getAddrInfo(String host, int port, int family, int type, int proto, int flags) {
+            try {
+                InetAddress[] adresses = InetAddress.getAllByName(host);
+                List<Object> addressTuples = new ArrayList<>();
+
+                for (InetAddress addr : adresses) {
+                    int addressFamily;
+                    Object sockAddr;
+
+                    if (addr instanceof Inet4Address) {
+                        addressFamily = 2;
+                        sockAddr = factory().createTuple(new Object[] {addr.getHostAddress(), port});
+                    } else {
+                        addressFamily = 23;
+                        sockAddr = factory().createTuple(new Object[] {addr.getHostAddress(), port, 0, 0});
+                    }
+
+                    addressTuples.add(factory().createTuple(new Object[] {addressFamily, 1, proto, addr.getCanonicalHostName(), sockAddr}));
+                    addressTuples.add(factory().createTuple(new Object[] {addressFamily, 2, proto, addr.getCanonicalHostName(), sockAddr}));
+                }
+
+                return factory().createList(addressTuples.toArray());
             } catch (UnknownHostException e) {
                 throw raise(PythonBuiltinClassType.OSError);
             }
