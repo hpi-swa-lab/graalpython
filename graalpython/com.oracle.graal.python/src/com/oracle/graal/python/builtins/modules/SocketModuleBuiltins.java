@@ -40,12 +40,15 @@
  */
 package com.oracle.graal.python.builtins.modules;
 
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.FileReader;
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 import com.oracle.graal.python.builtins.Builtin;
 import com.oracle.graal.python.builtins.CoreFunctions;
@@ -54,6 +57,7 @@ import com.oracle.graal.python.builtins.PythonBuiltins;
 import com.oracle.graal.python.builtins.objects.PNone;
 import com.oracle.graal.python.builtins.objects.common.SequenceStorageNodesFactory;
 import com.oracle.graal.python.builtins.objects.socket.PSocket;
+import com.oracle.graal.python.builtins.objects.tuple.PTuple;
 import com.oracle.graal.python.builtins.objects.type.LazyPythonClass;
 import com.oracle.graal.python.nodes.function.PythonBuiltinBaseNode;
 import com.oracle.graal.python.nodes.function.PythonBuiltinNode;
@@ -63,12 +67,82 @@ import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
 import com.oracle.truffle.api.dsl.GenerateNodeFactory;
 import com.oracle.truffle.api.dsl.NodeFactory;
 import com.oracle.truffle.api.dsl.Specialization;
+import org.graalvm.nativeimage.ImageInfo;
 
 @CoreFunctions(defineModule = "_socket")
 public class SocketModuleBuiltins extends PythonBuiltins {
     @Override
     protected List<? extends NodeFactory<? extends PythonBuiltinBaseNode>> getNodeFactories() {
         return SocketModuleBuiltinsFactory.getFactories();
+    }
+    private static class Service {
+        int port;
+        String protocol;
+        public Service(int port, String protocol) {
+            this.port = port;
+            this.protocol = protocol;
+        }
+    }
+
+    private enum IPPROTO {
+        // proto constants are here: /usr/include/netinet/in.h
+        IPPROTO_TCP(6),
+        IPPROTO_UDP(17);
+        private final int value;
+
+        IPPROTO(int value) {
+            this.value = value;
+        }
+
+        static IPPROTO resolveProto(String proto) {
+            return "tcp".equals(proto) ? IPPROTO_TCP : IPPROTO_UDP;
+        }
+    }
+
+    static protected Map<String, List<Service>> services;
+
+    @TruffleBoundary
+    private static Map<String, List<Service>> parseServices() {
+        File services_file = new File("/etc/services");
+        try {
+            BufferedReader br = new BufferedReader(new FileReader(services_file));
+            String line;
+            Map<String, List<Service>> parsedServices = new HashMap<>();
+            while ((line = br.readLine()) != null){
+                if (line.startsWith("#")) {
+                    continue;
+                }
+                line = line.replaceAll("\\s+"," ");
+                if (line.startsWith(" ")) {
+                    continue;
+                }
+                line = line.split("#")[0];
+                String[] service = line.split(" ");
+                if (service.length < 2) {
+                    continue;
+                }
+                String[] portAndProtocol = service[1].split("/");
+                List<Service> serviceObj = parsedServices.computeIfAbsent(service[0], k -> new LinkedList<>());
+                Service newService = new Service(Integer.parseInt(portAndProtocol[0]), portAndProtocol[1]);
+                serviceObj.add(newService);
+                if (service.length > 2) {
+                    for (int i = 2; i < service.length; i++) {
+                        serviceObj = parsedServices.computeIfAbsent(service[i], k -> new LinkedList<>());
+                        serviceObj.add(newService);
+                    }
+                }
+            }
+            return parsedServices;
+    } catch (Exception e) {
+            return new HashMap<>();
+        }
+    }
+
+    static {
+        if(ImageInfo.inImageBuildtimeCode()){
+
+            services = parseServices();
+        }
     }
 
     // socket(family=AF_INET, type=SOCK_STREAM, proto=0, fileno=None)
@@ -125,27 +199,56 @@ public class SocketModuleBuiltins extends PythonBuiltins {
         @Specialization
         @TruffleBoundary
         Object getAddrInfo(String host, int port, int family, int type, int proto, int flags) {
-            try {
-                InetAddress[] adresses = InetAddress.getAllByName(host);
-                List<Object> addressTuples = new ArrayList<>();
+            InetAddress[] adresses = resolveHost(host);
+            List<Service> serviceList = new ArrayList();
+            serviceList.add(new Service(port, "tcp"));
+            serviceList.add(new Service(port, "udp"));
+            return mergeAdressesAndServices(adresses, serviceList, proto);
+        }
+        @Specialization
+        @TruffleBoundary
+        Object getAddrInfo(String host, String port, int family, int type, int proto, int flags) {
+            if (services == null) {
+                services = parseServices();
+            }
+            List<Service> serviceList = services.get(port);
 
-                for (InetAddress addr : adresses) {
-                    int addressFamily;
-                    Object sockAddr;
+            InetAddress[] adresses = resolveHost(host);
+            return mergeAdressesAndServices(adresses, serviceList, proto);
+        }
 
-                    if (addr instanceof Inet4Address) {
-                        addressFamily = 2;
-                        sockAddr = factory().createTuple(new Object[] {addr.getHostAddress(), port});
-                    } else {
-                        addressFamily = 23;
-                        sockAddr = factory().createTuple(new Object[] {addr.getHostAddress(), port, 0, 0});
+        private Object mergeAdressesAndServices(InetAddress[] adresses, List<Service> serviceList, int proto) {
+            List<Object> addressTuples = new ArrayList<>();
+
+            for(InetAddress addr : adresses) {
+                for(Service srv : serviceList) {
+                    IPPROTO protocol = IPPROTO.resolveProto(srv.protocol);
+                    if (proto != 0 && proto != protocol.value) {
+                        continue;
                     }
-
-                    addressTuples.add(factory().createTuple(new Object[] {addressFamily, 1, proto, addr.getCanonicalHostName(), sockAddr}));
-                    addressTuples.add(factory().createTuple(new Object[] {addressFamily, 2, proto, addr.getCanonicalHostName(), sockAddr}));
+                    addressTuples.add(createAddressTuple(addr, srv.port, protocol));
                 }
+            }
+            return factory().createList(addressTuples.toArray());
+        }
 
-                return factory().createList(addressTuples.toArray());
+        private PTuple createAddressTuple(InetAddress address, int port, IPPROTO proto) {
+            int addressFamily;
+            Object sockAddr;
+            if (address instanceof Inet4Address) {
+                addressFamily = 2;
+                sockAddr = factory().createTuple(new Object[] {address.getHostAddress(), port});
+            } else {
+                addressFamily = 30;
+                sockAddr = factory().createTuple(new Object[] {address.getHostAddress(), port, 0, 0});
+            }
+
+            return factory().createTuple(new Object[] {addressFamily, proto == IPPROTO.IPPROTO_TCP ? 1 : 2 , proto.value, "", sockAddr});
+        }
+
+        InetAddress[] resolveHost(String host) {
+            try {
+                return InetAddress.getAllByName(host);
             } catch (UnknownHostException e) {
                 throw raise(PythonBuiltinClassType.OSError);
             }
