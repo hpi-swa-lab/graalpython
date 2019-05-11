@@ -62,6 +62,7 @@ import com.oracle.graal.python.builtins.objects.ints.PInt;
 import com.oracle.graal.python.builtins.objects.list.PList;
 import com.oracle.graal.python.builtins.objects.module.PythonModule;
 import com.oracle.graal.python.builtins.objects.str.PString;
+import com.oracle.graal.python.nodes.PRaiseNode;
 import com.oracle.graal.python.nodes.call.special.LookupAndCallUnaryNode;
 import com.oracle.graal.python.nodes.call.special.LookupAndCallUnaryNode.NoAttributeHandler;
 import com.oracle.graal.python.nodes.function.PythonBuiltinBaseNode;
@@ -70,6 +71,7 @@ import com.oracle.graal.python.nodes.function.builtins.PythonBinaryBuiltinNode;
 import com.oracle.graal.python.nodes.function.builtins.PythonUnaryBuiltinNode;
 import com.oracle.graal.python.nodes.object.GetClassNode;
 import com.oracle.graal.python.nodes.util.CastToIntegerFromIntNode;
+import com.oracle.graal.python.nodes.util.ExceptionStateNodes.GetCaughtExceptionNode;
 import com.oracle.graal.python.runtime.PythonContext;
 import com.oracle.graal.python.runtime.PythonCore;
 import com.oracle.graal.python.runtime.PythonOptions;
@@ -79,7 +81,6 @@ import com.oracle.truffle.api.CompilerDirectives;
 import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
 import com.oracle.truffle.api.Truffle;
 import com.oracle.truffle.api.TruffleFile;
-import com.oracle.truffle.api.TruffleLanguage.ContextReference;
 import com.oracle.truffle.api.TruffleLanguage.Env;
 import com.oracle.truffle.api.TruffleOptions;
 import com.oracle.truffle.api.dsl.Cached;
@@ -274,14 +275,16 @@ public class SysModuleBuiltins extends PythonBuiltins {
         return os;
     }
 
-    @Builtin(name = "exc_info", minNumOfPositionalArgs = 0)
+    @Builtin(name = "exc_info")
     @GenerateNodeFactory
     public abstract static class ExcInfoNode extends PythonBuiltinNode {
+
         @Specialization
-        public Object run(
-                        @Cached("create()") GetClassNode getClassNode) {
-            PythonContext context = getContext();
-            PException currentException = context.getCaughtException();
+        public Object run(VirtualFrame frame,
+                        @Cached GetClassNode getClassNode,
+                        @Cached GetCaughtExceptionNode getCaughtExceptionNode) {
+            PException currentException = getCaughtExceptionNode.execute(frame);
+            assert currentException != PException.NO_EXCEPTION;
             if (currentException == null) {
                 return factory().createTuple(new PNone[]{PNone.NONE, PNone.NONE, PNone.NONE});
             } else {
@@ -290,6 +293,7 @@ public class SysModuleBuiltins extends PythonBuiltins {
                 return factory().createTuple(new Object[]{getClassNode.execute(exception), exception, exception.getTraceback(factory())});
             }
         }
+
     }
 
     @Builtin(name = "_getframe", minNumOfPositionalArgs = 0, maxNumOfPositionalArgs = 1)
@@ -312,17 +316,15 @@ public class SysModuleBuiltins extends PythonBuiltins {
          * behavior. (it only captures the frames if a CallTarget boundary is crossed)
          */
         private static final class GetStackTraceRootNode extends RootNode {
-            private final ContextReference<PythonContext> contextRef;
+            @Child private PRaiseNode raiseNode = PRaiseNode.create();
 
             protected GetStackTraceRootNode(PythonLanguage language) {
                 super(language);
-                this.contextRef = language.getContextReference();
             }
 
             @Override
             public Object execute(VirtualFrame frame) {
-                CompilerDirectives.transferToInterpreter();
-                throw contextRef.get().getCore().raise(ValueError, null);
+                throw raiseNode.raise(ValueError);
             }
 
             @Override
@@ -398,6 +400,7 @@ public class SysModuleBuiltins extends PythonBuiltins {
     @GenerateNodeFactory
     public abstract static class GetFileSystemEncodingNode extends PythonBuiltinNode {
         @Specialization
+        @TruffleBoundary
         protected String getFileSystemEncoding() {
             return System.getProperty("file.encoding");
         }
@@ -445,16 +448,16 @@ public class SysModuleBuiltins extends PythonBuiltins {
         @Child private CastToIntegerFromIntNode castToIntNode = CastToIntegerFromIntNode.create();
 
         @Specialization(guards = "isNoValue(dflt)")
-        protected Object doGeneric(Object object, @SuppressWarnings("unused") PNone dflt,
+        protected Object doGeneric(VirtualFrame frame, Object object, @SuppressWarnings("unused") PNone dflt,
                         @Cached("createWithError()") LookupAndCallUnaryNode callSizeofNode) {
-            Object result = castToIntNode.execute(callSizeofNode.executeObject(object));
+            Object result = castToIntNode.execute(callSizeofNode.executeObject(frame, object));
             return checkResult(result);
         }
 
         @Specialization(guards = "!isNoValue(dflt)")
-        protected Object doGeneric(Object object, Object dflt,
+        protected Object doGeneric(VirtualFrame frame, Object object, Object dflt,
                         @Cached("createWithoutError()") LookupAndCallUnaryNode callSizeofNode) {
-            Object result = castToIntNode.execute(callSizeofNode.executeObject(object));
+            Object result = castToIntNode.execute(callSizeofNode.executeObject(frame, object));
             if (result == PNone.NO_VALUE) {
                 return dflt;
             }

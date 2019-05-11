@@ -31,8 +31,8 @@ import java.util.logging.Level;
 
 import com.oracle.graal.python.PythonLanguage;
 import com.oracle.graal.python.builtins.Builtin;
-import com.oracle.graal.python.builtins.objects.function.Signature;
 import com.oracle.graal.python.builtins.objects.function.PKeyword;
+import com.oracle.graal.python.builtins.objects.function.Signature;
 import com.oracle.graal.python.nodes.PRootNode;
 import com.oracle.graal.python.nodes.argument.ReadArgumentNode;
 import com.oracle.graal.python.nodes.argument.ReadIndexedArgumentNode;
@@ -85,7 +85,7 @@ public final class BuiltinFunctionRootNode extends PRootNode {
 
         @Override
         public Object execute(VirtualFrame frame) {
-            return node.execute(arg.execute(frame));
+            return node.execute(frame, arg.execute(frame));
         }
     }
 
@@ -102,7 +102,7 @@ public final class BuiltinFunctionRootNode extends PRootNode {
 
         @Override
         public Object execute(VirtualFrame frame) {
-            return node.execute(arg1.execute(frame), arg2.execute(frame));
+            return node.execute(frame, arg1.execute(frame), arg2.execute(frame));
         }
     }
 
@@ -121,7 +121,7 @@ public final class BuiltinFunctionRootNode extends PRootNode {
 
         @Override
         public Object execute(VirtualFrame frame) {
-            return node.execute(arg1.execute(frame), arg2.execute(frame), arg3.execute(frame));
+            return node.execute(frame, arg1.execute(frame), arg2.execute(frame), arg3.execute(frame));
         }
     }
 
@@ -248,6 +248,16 @@ public final class BuiltinFunctionRootNode extends PRootNode {
 
     @Override
     public boolean isCloningAllowed() {
+        return true;
+    }
+
+    @Override
+    public boolean isCaptureFramesForTrace() {
+        return false;
+    }
+
+    @Override
+    public boolean isInternal() {
         return true;
     }
 
