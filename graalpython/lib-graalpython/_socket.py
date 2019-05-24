@@ -41,6 +41,18 @@ AF_UNSPEC = 0
 AF_INET = 2
 AF_INET6 = 30
 
+AI_PASSIVE = 1  # get address to use bind()
+AI_CANONNAME = 2  # fill ai_canonname
+AI_NUMERICHOST = 4  # prevent name resolution
+AI_MASK = (AI_PASSIVE | AI_CANONNAME | AI_NUMERICHOST)
+
+AI_ALL = 256  # IPv6 and IPv4-mapped (with AI_V4MAPPED)
+AI_V4MAPPED_CFG = 512  # accept IPv4-mapped if kernel supports
+AI_ADDRCONFIG = 1024  # only if any address is assigned
+AI_V4MAPPED = 2048  # accept IPv4-mapped IPv6 address
+
+AI_DEFAULT = (AI_V4MAPPED_CFG | AI_ADDRCONFIG)
+
 SOCK_DGRAM = 2
 SOCK_STREAM = 1
 SOCK_RAW = 3
@@ -54,8 +66,10 @@ TCP_NODELAY = 1
 has_ipv6 = False  #: TODO implement me
 error = OSError
 
+
 class timeout(OSError):
     pass
+
 
 __default_timeout = None
 
@@ -75,4 +89,3 @@ try:
     del _sock
 except:
     pass
-
