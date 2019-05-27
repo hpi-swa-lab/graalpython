@@ -53,6 +53,51 @@ public class PSocket extends PythonBuiltinObject {
     public static final int SOCK_DGRAM = 1;
     public static final int SOCK_STREAM = 2;
 
+    public static final int AI_PASSIVE = 1;
+    public static final int AI_CANONNAME = 2;
+    public static final int AI_NUMERICHOST = 4;
+
+    public static final int AI_ALL = 256;
+    public static final int AI_V4MAPPED_CFG = 512;
+    public static final int AI_ADDRCONFIG = 1024;
+    public static final int AI_V4MAPPED = 2048;
+
+    public static final int AI_MASK = (AI_PASSIVE | AI_CANONNAME | AI_NUMERICHOST);
+
+    public static final int AI_DEFAULT = (AI_V4MAPPED_CFG | AI_ADDRCONFIG);
+
+    public static final int IPPROTO_IP = 0;
+    public static final int IPPROTO_HOPOPTS = 0;
+    public static final int IPPROTO_ICMP = 1;
+    public static final int IPPROTO_IGMP = 2;
+    public static final int IPPROTO_GGP = 3;
+    public static final int IPPROTO_IPV4 = 4;
+    public static final int IPPROTO_IPIP = IPPROTO_IPV4;
+    public static final int IPPROTO_TCP = 6;
+    public static final int IPPROTO_EGP = 8;
+    public static final int IPPROTO_PUP = 12;
+    public static final int IPPROTO_UDP = 17;
+    public static final int IPPROTO_IDP = 22;
+    public static final int IPPROTO_TP = 29;
+    public static final int IPPROTO_XTP = 36;
+    public static final int IPPROTO_ROUTING = 43;
+    public static final int IPPROTO_FRAGMENT = 44;
+    public static final int IPPROTO_RSVP = 46;
+    public static final int IPPROTO_GRE = 47;
+    public static final int IPPROTO_ESP = 50;
+    public static final int IPPROTO_AH = 51;
+    public static final int IPPROTO_NONE = 59;
+    public static final int IPPROTO_DSTOPTS = 60;
+    public static final int IPPROTO_HELLO = 63;
+    public static final int IPPROTO_ND = 77;
+    public static final int IPPROTO_EON = 80;
+    public static final int IPPROTO_PIM = 103;
+    public static final int IPPROTO_IPCOMP = 108;
+    public static final int IPPROTO_SCTP = 132;
+    public static final int IPPROTO_RAW = 255;
+    public static final int IPPROTO_MAX = 256;
+
+
     private static final InetSocketAddress EPHEMERAL_ADDRESS = new InetSocketAddress(0);
 
     private final int family;
