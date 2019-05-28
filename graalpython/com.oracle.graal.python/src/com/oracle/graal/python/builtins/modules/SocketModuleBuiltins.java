@@ -226,7 +226,7 @@ public class SocketModuleBuiltins extends PythonBuiltins {
         @TruffleBoundary
         Object getAddrInfo(String host, int port, int family, int type, int proto, int flags) {
             InetAddress[] adresses = resolveHost(host);
-            List<Service> serviceList = new ArrayList();
+            List<Service> serviceList = new ArrayList<>();
             serviceList.add(new Service(port, "tcp"));
             serviceList.add(new Service(port, "udp"));
             return mergeAdressesAndServices(adresses, serviceList, proto, flags);
