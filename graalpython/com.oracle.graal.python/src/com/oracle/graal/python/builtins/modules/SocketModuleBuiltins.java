@@ -42,20 +42,21 @@ package com.oracle.graal.python.builtins.modules;
 
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileReader;
 import java.net.Inet4Address;
-import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.util.*;
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.Map;
 
 import com.oracle.graal.python.builtins.Builtin;
 import com.oracle.graal.python.builtins.CoreFunctions;
 import com.oracle.graal.python.builtins.PythonBuiltinClassType;
 import com.oracle.graal.python.builtins.PythonBuiltins;
 import com.oracle.graal.python.builtins.objects.PNone;
-import com.oracle.graal.python.builtins.objects.common.SequenceStorageNodesFactory;
 import com.oracle.graal.python.builtins.objects.ints.PInt;
 import com.oracle.graal.python.builtins.objects.socket.PSocket;
 import com.oracle.graal.python.builtins.objects.tuple.PTuple;
@@ -63,7 +64,6 @@ import com.oracle.graal.python.builtins.objects.type.LazyPythonClass;
 import com.oracle.graal.python.nodes.function.PythonBuiltinBaseNode;
 import com.oracle.graal.python.nodes.function.PythonBuiltinNode;
 import com.oracle.graal.python.runtime.exception.PythonErrorType;
-import com.oracle.graal.python.runtime.sequence.storage.SequenceStorageFactory;
 import com.oracle.truffle.api.CompilerDirectives.TruffleBoundary;
 import com.oracle.truffle.api.dsl.GenerateNodeFactory;
 import com.oracle.truffle.api.dsl.NodeFactory;
@@ -215,12 +215,10 @@ public class SocketModuleBuiltins extends PythonBuiltins {
     @GenerateNodeFactory
     public abstract static class GetAddrInfoNode extends PythonBuiltinNode {
         @Specialization
-        @TruffleBoundary
         Object getAddrInfo(String host, int port, int family, int type, int proto, PInt flags) {
             return getAddrInfo(host, port, family, type, proto, flags.asInt());
         }
         @Specialization
-        @TruffleBoundary
         Object getAddrInfo(String host, String port, int family, int type, int proto, PInt flags) {
             return getAddrInfo(host, port, family, type, proto, flags.asInt());
         }
@@ -245,6 +243,7 @@ public class SocketModuleBuiltins extends PythonBuiltins {
             return mergeAdressesAndServices(adresses, serviceList, proto, flags);
         }
 
+        @TruffleBoundary
         private Object mergeAdressesAndServices(InetAddress[] adresses, List<Service> serviceList, int proto, int flags) {
             if (protocols == null) {
                 protocols = parseProtocols();
