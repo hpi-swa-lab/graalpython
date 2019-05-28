@@ -96,16 +96,8 @@ public class SocketModuleBuiltins extends PythonBuiltins {
             String line;
             Map<String, List<Service>> parsedServices = new HashMap<>();
             while ((line = br.readLine()) != null){
-                if (line.startsWith("#")) {
-                    continue;
-                }
-                line = line.replaceAll("\\s+"," ");
-                if (line.startsWith(" ")) {
-                    continue;
-                }
-                line = line.split("#")[0];
-                String[] service = line.split(" ");
-                if (service.length < 2) {
+                String[] service = cleanLine(line);
+                if (service == null) {
                     continue;
                 }
                 String[] portAndProtocol = service[1].split("/");
@@ -133,16 +125,8 @@ public class SocketModuleBuiltins extends PythonBuiltins {
             String line;
             Map<String, Integer> parsedProtocols = new HashMap<>();
             while ((line = br.readLine()) != null){
-                if (line.startsWith("#")) {
-                    continue;
-                }
-                line = line.replaceAll("\\s+"," ");
-                if (line.startsWith(" ")) {
-                    continue;
-                }
-                line = line.split("#")[0];
-                String[] protocol = line.split(" ");
-                if (protocol.length < 2) {
+                String[] protocol = cleanLine(line);
+                if (protocol == null) {
                     continue;
                 }
                 String protocolString = protocol[0];
@@ -153,6 +137,22 @@ public class SocketModuleBuiltins extends PythonBuiltins {
         } catch (Exception e) {
             return new HashMap<>();
         }
+    }
+
+    private static String[] cleanLine(String line) {
+        if (line.startsWith("#")) {
+            return null;
+        }
+        line = line.replaceAll("\\s+"," ");
+        if (line.startsWith(" ")) {
+            return null;
+        }
+        line = line.split("#")[0];
+        String[] words = line.split(" ");
+        if (words.length < 2) {
+            return null;
+        }
+        return words;
     }
 
     static {
